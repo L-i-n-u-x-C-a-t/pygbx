@@ -1,11 +1,11 @@
 import logging
 from enum import IntEnum
 
-import lzo
 import zlib
 
 import pygbx.headers as headers
 from pygbx.bytereader import ByteReader
+
 
 class GbxType(IntEnum):
     """Represents the type of the main or auxiliary class contained within the GBX file.
@@ -23,7 +23,7 @@ class GbxType(IntEnum):
     REPLAY_RECORD_OLD = 0x02407E000
     GAME_GHOST = 0x0303F005
     CTN_GHOST = 0x03092000
-    CTN_GHOST_OLD = 0x2401B000 
+    CTN_GHOST_OLD = 0x2401B000
     CTN_COLLECTOR = 0x0301A000
     CTN_OBJECT_INFO = 0x0301C000
     CTN_DECORATION = 0x03038000
@@ -33,8 +33,10 @@ class GbxType(IntEnum):
     MW_NOD = 0x01001000
     UNKNOWN = 0x0
 
+
 class GbxLoadError(Exception):
     """Thrown when the Gbx class fails to parse the provided Gbx object"""
+
     def __init__(self, message):
         """Initializes the Exception instance with a message.
 
@@ -50,8 +52,8 @@ class Gbx(object):
     The class should properly support most TMNF/TMUF files, with support for some TM2 files.
 
     It is not guaranteed that the class will parse all of the data in a GBX file. If an error is encountered,
-    an error will be logged with the logging module, but the class will attempt to read until the end of the file, unless
-    the file is not a GBX file, then a GbxLoadError is thrown.
+    an error will be logged with the logging module, but the class will attempt to read until the end of the file,
+    unless the file is not a GBX file, then a GbxLoadError is thrown.
 
     The class uses the ByteReader class which provides support for reading data types exposed by the GBX file format,
     found on https://wiki.xaseco.org/wiki/GBX.
@@ -65,7 +67,7 @@ class Gbx(object):
 
         Parses the Gbx file sequentially, reading all supported chunks until no more chunks have
         been found. Parsing can fail depending on the what classes or chunks it contains and what
-        version of the GBX file is being parsed. 
+        version of the GBX file is being parsed.
 
         Args:
             obj (str/bytes): a file path to the Gbx file or bytes object containing the Gbx data
@@ -79,10 +81,10 @@ class Gbx(object):
         else:
             self.root_parser = ByteReader(obj)
 
-        self.magic = self.root_parser.read(3, '3s')
-        if self.magic.decode('utf-8') != 'GBX':
+        self.magic = self.root_parser.read_string(3)
+        if self.magic != 'GBX':
             raise GbxLoadError(f'obj is not a valid Gbx data: magic string is incorrect')
-        self.version = self.root_parser.read(2, 'H')
+        self.version = self.root_parser.read_uint16()
         self.classes = {}
         self.root_classes = {}
         self.positions = {}
@@ -124,16 +126,17 @@ class Gbx(object):
                 if (flags & 4) == 0:
                     self.root_parser.skip(4)
 
-        self.root_parser.push_info()
-        self.positions['data_size'] = self.root_parser.pop_info()
+        self.root_parser.push_position_checkpoint()
+        self.positions['data_size'] = self.root_parser.pop_position_checkpoint()
 
         data_size = self.root_parser.read_uint32()
         compressed_data_size = self.root_parser.read_uint32()
         cdata = self.root_parser.read(compressed_data_size)
-        self.data = bytearray(lzo.decompress(cdata, False, data_size))
+        # self.data = bytearray(lzo.decompress(cdata, False, data_size))
+        self.data = b'\x00\x00\x00\x00'
 
         bp = ByteReader(self.data)
-        self._read_node(self.class_id, -1, bp)
+        #self._read_node(self.class_id, -1, bp)
 
     def __read_sub_folder(self):
         num_sub_folders = self.root_parser.read_uint32()
@@ -153,6 +156,7 @@ class Gbx(object):
         ByteParser with the current position set right after the chunk ID, or None
         if no specified chunk ID was found
     """
+
     def find_raw_chunk_id(self, chunk_id):
         bp = ByteReader(self.data[:])
         for i in range(len(self.data) - 4):
@@ -164,13 +168,13 @@ class Gbx(object):
 
     def get_class_by_id(self, class_id):
         """Finds the header that corresponds to the provided class ID.
-        
+
         This is a wrapper around get_classes_by_ids that returns the first
         element if any headers have been found for a single ID. See get_classes_by_ids for more details.
 
         Args:
             class_id (int): the class ID to be retrieved
-        
+
         Returns:
             a single instance of the header corresponding to the provided class ID
         """
@@ -191,7 +195,7 @@ class Gbx(object):
 
         Returns:
             a list of matched headers
-        """        
+        """
         classes = []
         for cl in list(self.classes.values()) + list(self.root_classes.values()):
             if cl.id in class_ids:
@@ -202,9 +206,9 @@ class Gbx(object):
     def _read_user_data(self):
         entries = {}
 
-        self.root_parser.push_info()
+        self.root_parser.push_position_checkpoint()
         self.user_data_size = self.root_parser.read_uint32()
-        self.positions['user_data_size'] = self.root_parser.pop_info()
+        self.positions['user_data_size'] = self.root_parser.pop_position_checkpoint()
 
         user_data_pos = self.root_parser.pos
         num_chunks = self.root_parser.read_uint32()
@@ -214,9 +218,9 @@ class Gbx(object):
                 return
 
             cid = self.root_parser.read_uint32()
-            self.root_parser.push_info()
+            self.root_parser.push_position_checkpoint()
             size = self.root_parser.read_uint32()
-            self.positions[str(cid)] = self.root_parser.pop_info()
+            self.positions[str(cid)] = self.root_parser.pop_position_checkpoint()
             entries[cid] = size
 
         for cid, size in entries.items():
@@ -226,7 +230,7 @@ class Gbx(object):
 
     def _read_header_entry(self, cid, size):
         if cid == 0x03043002 or cid == 0x24003002:
-            version = self.root_parser.read_byte()
+            version = self.root_parser.read_uint8()
             if version < 3:
                 for _ in range(3):
                     self.root_parser.read_string_lookback()
@@ -245,8 +249,9 @@ class Gbx(object):
 
                         if version == 6:
                             self.root_parser.skip(4)
-                        
+
                         if version >= 7:
+                            # TODO: Why no skip?
                             self.root_parser.read_uint32()
 
                             if version >= 9:
@@ -257,7 +262,7 @@ class Gbx(object):
 
                                     if version >= 11:
                                         self.root_parser.skip(4)
-                                        
+
                                         if version >= 12:
                                             self.root_parser.skip(4)
 
@@ -266,17 +271,17 @@ class Gbx(object):
 
         elif cid == 0x03043003 or cid == 0x24003003:
             p = self.root_parser.pos
-            self.root_parser.read_byte()
+            self.root_parser.read_uint8()
             for _ in range(3):
                 self.root_parser.read_string_lookback()
 
             game_class = headers.CGameCommon(cid)
 
-            self.root_parser.push_info()
+            self.root_parser.push_position_checkpoint()
             game_class.track_name = self.root_parser.read_string()
-            self.positions['track_name'] = self.root_parser.pop_info()
+            self.positions['track_name'] = self.root_parser.pop_position_checkpoint()
 
-            self.root_parser.read_byte()
+            self.root_parser.read_uint8()
 
             self.root_classes[cid] = game_class
 
@@ -293,6 +298,7 @@ class Gbx(object):
                 self.__replay_header_info['nickname'] = self.root_parser.read_string()
                 if version >= 6:
                     self.__replay_header_info['driver_login'] = self.root_parser.read_string()
+                    # TODO: Aren't we supposed to skip at version > 8 ? Where's the check?
                     self.root_parser.skip(1)
                     self.root_parser.read_string_lookback()
         elif cid == 0x03093002 or cid == 0x2403F002:
@@ -393,7 +399,7 @@ class Gbx(object):
             elif cid == 0x0305B008 or cid == 0x2400C008:
                 bp.skip(2 * 4)
             elif cid == 0x0305B00A:
-                bp.skip(9 * 4)                
+                bp.skip(9 * 4)
             elif cid == 0x0305B00D:
                 bp.skip(1 * 4)
             elif cid == 0x03043014 or cid == 0x03043029:
@@ -401,8 +407,8 @@ class Gbx(object):
                 # m = hashlib.md5()
                 # m.update(bp.read(16))
                 # if isinstance(self.__current_class, headers.CGameChallenge):
-                    # self.__current_class.password_hash = m.hexdigest()
-                    # self.__current_class.password_crc = bp.read_uint32()
+                # self.__current_class.password_hash = m.hexdigest()
+                # self.__current_class.password_crc = bp.read_uint32()
             elif cid == 0x03043017:
                 num_cps = bp.read_uint32()
                 for _ in range(num_cps):
@@ -411,17 +417,18 @@ class Gbx(object):
                     bp.read_uint32()
 
             elif cid == 0x0304301F or cid == 0x2400301F:
+                # TODO: lots of read_int32 here instead of read_uint32, is this intended?
                 game_class.map_uid = bp.read_string_lookback()
                 game_class.environment = bp.read_string_lookback()
                 game_class.map_author = bp.read_string_lookback()
 
-                bp.push_info()
+                bp.push_position_checkpoint()
                 game_class.map_name = bp.read_string()
-                self.positions['map_name'] = bp.pop_info()
+                self.positions['map_name'] = bp.pop_position_checkpoint()
 
-                bp.push_info()
+                bp.push_position_checkpoint()
                 game_class.mood = bp.read_string_lookback()
-                self.positions['mood'] = bp.pop_info()
+                self.positions['mood'] = bp.pop_position_checkpoint()
                 game_class.env_bg = bp.read_string_lookback()
                 game_class.env_author = bp.read_string_lookback()
 
@@ -434,7 +441,7 @@ class Gbx(object):
                 game_class.req_unlock = bp.read_int32()
                 game_class.flags = bp.read_int32()
 
-                bp.push_info()
+                bp.push_position_checkpoint()
                 num_blocks = bp.read_uint32()
                 i = 0
                 while i < num_blocks:
@@ -442,11 +449,12 @@ class Gbx(object):
                     block.name = bp.read_string_lookback()
                     if block.name != 'Unassigned1':
                         game_class.blocks.append(block)
-                    block.rotation = bp.read_byte()
+                    block.rotation = bp.read_uint32()
+                    # TODO: the ByteReader read_vec3 method float read defined for Vector3 objects, not bytes
                     block.position = headers.Vector3(
-                        bp.read_byte(),
-                        bp.read_byte(),
-                        bp.read_byte()
+                        bp.read_uint32(),
+                        bp.read_uint32(),
+                        bp.read_uint32()
                     )
 
                     if game_class.flags > 0:
@@ -461,7 +469,7 @@ class Gbx(object):
                         block.skin_author = bp.read_string_lookback()
                         if game_class.flags >= 6:
                             # TM2 flags
-                            bp.read_string() # Block waypoint type {Spawn, Goal}
+                            bp.read_string()  # Block waypoint type {Spawn, Goal}
                             bp.read_int32()
                             self._read_node(0x2E009000, 0, bp, False)
                         else:
@@ -478,16 +486,17 @@ class Gbx(object):
 
                     i += 1
 
-                self.positions['block_data'] = bp.pop_info()              
+                self.positions['block_data'] = bp.pop_position_checkpoint()
             elif cid == 0x03043022:
                 bp.skip(4)
             elif cid == 0x03043024:
-                version = bp.read_byte()
+                version = bp.read_uint8()
                 if version >= 3:
                     bp.skip(32)
 
                 file_path = bp.read_string()
-                if len(file_path) > 0 or version >= 3:
+                # TODO: here is version >=3, further below => 1, wiki says 1, also I read about TM2 crash issues...
+                if len(file_path) > 0 or version >= 1:
                     bp.read_string()
             elif cid == 0x03043025:
                 bp.skip(4 * 4)
@@ -505,16 +514,16 @@ class Gbx(object):
             elif cid == 0x0304302A:
                 bp.read_int32()
             elif cid == 0x3043040:
-                bp.pos -= 4
-                bp.push_info()
-                bp.pos += 4
+                bp.skip(-4)
+                bp.push_position_checkpoint()
+                bp.skip(4)
 
                 item_bp = ByteReader(bp.data)
                 item_bp.pos = bp.pos
 
                 item_bp.skip(2 * 4)
 
-                item_bp.push_info()
+                item_bp.push_position_checkpoint()
                 item_bp.skip(2 * 4)
 
                 num_items = item_bp.read_uint32()
@@ -547,7 +556,7 @@ class Gbx(object):
             elif cid == 0x03059002 or cid == 0x2403A002:
                 bp.read_string()
                 for i in range(2):
-                    version = bp.read_byte()
+                    version = bp.read_uint8()
                     if version >= 3:
                         bp.skip(32)
 
@@ -558,12 +567,16 @@ class Gbx(object):
                     if len(file_path) > 0 and version >= 1:
                         bp.read_string()
             elif cid == 0x03043022:
+                # TODO: wiki quite explicitly says uint32 here. the read_int32's ins need to be reconsidered
                 bp.read_int32()
             elif cid == 0x03043024:
-                bp.read_byte()
-                bp.skip(32)
-                bp.read_string()
-                bp.read_string()
+                version = bp.read_uint8()
+                if version >= 3:
+                    bp.skip(32)
+
+                file_path = bp.read_string()
+                if len(file_path) > 0 and version >= 1:
+                    bp.read_string()
             elif cid == 0x03043025:
                 bp.skip(16)
             elif cid == 0x03043026:
@@ -578,6 +591,7 @@ class Gbx(object):
 
                 bp.read_string()
             elif cid == 0x0304302A:
+                # TODO: wiki says bool and not int32?
                 bp.read_int32()
             elif cid == GbxType.WAYPOINT_SPECIAL_PROP or cid == 0x2E009000:
                 version = bp.read_uint32()
@@ -613,7 +627,7 @@ class Gbx(object):
                     if idx >= 0 and idx not in self.classes:
                         _class_id = bp.read_uint32()
                         self._read_node(_class_id, idx, bp)
-                
+
                 bp.skip(4)
                 # num_extras = bp.read_uint32()
                 # bp.skip(num_extras * 8)
@@ -632,15 +646,15 @@ class Gbx(object):
             elif cid == 0x03043022 or cid == 0x24003022:
                 bp.skip(4)
             elif cid == 0x03043024 or cid == 0x24003024:
-                version = bp.read_byte()
+                version = bp.read_uint8()
                 if version >= 3:
                     bp.skip(32)
-                
+
                 path = bp.read_string()
                 if len(path) > 0 and version >= 1:
                     bp.read_string()
             elif cid == 0x03043025 or cid == 0x24003025:
-                bp.skip(4 * 4)
+                bp.skip(8 * 2)
             elif cid == 0x03043026 or cid == 0x24003026:
                 idx = bp.read_int32()
                 if idx >= 0 and idx not in self.classes:
@@ -665,7 +679,7 @@ class Gbx(object):
                 for i in range(num):
                     cp_times.append(bp.read_uint32())
                     bp.skip(4)
-                
+
                 game_class.cp_times = cp_times
             elif cid == 0x309200C or cid == 0x2401B00C:
                 bp.skip(4)
@@ -674,11 +688,11 @@ class Gbx(object):
 
                 # For TM2
                 if ('version' in self.__replay_header_info
-                    and self.__replay_header_info['version'] >= 8):
+                        and self.__replay_header_info['version'] >= 8):
                     pos = bp.pos
                     try:
                         game_class.login = bp.read_string()
-                    except:
+                    except Exception as e:
                         bp.pos = pos
 
             elif cid == 0x309200F or cid == 0x2401B00F:
@@ -730,7 +744,7 @@ class Gbx(object):
                 name = bp.read_string_lookback()
                 if name != '':
                     game_class.control_names.append(name)
-                
+
             if len(game_class.control_names) == 0:
                 return
 
@@ -738,10 +752,10 @@ class Gbx(object):
             bp.skip(4)
             for _ in range(num_control_entries):
                 time = bp.read_uint32() - 100000
-                name = game_class.control_names[bp.read_byte()]
-                entry = headers.ControlEntry(time, name, bp.read_uint16(), bp.read_uint16()) 
+                name = game_class.control_names[bp.read_uint8()]
+                entry = headers.ControlEntry(time, name, bp.read_uint16(), bp.read_uint16())
                 game_class.control_entries.append(entry)
-            
+
             game_class.game_version = bp.read_string()
             bp.skip(3 * 4)
             bp.read_string()
