@@ -384,13 +384,11 @@ class ByteReader(ByteReaderBase):
     Write operations always return the number of bytes written or False upon errors/exceptions.
 
     The readers position will always move forward when reading/writing data, unless an error/exception has occurred!
+    (Exception: vec3)
     """
 
     def __init__(self, data):
         """Constructs a new ByteReader object that can be used to perform actions on the selected buffer on.
-
-        If any errors encounter while trying to read/write/jump from the buffer, the operation in question will return
-        False. It will not throw or return data upon errors.
 
         Args:
             data (str/IOBase/bytes/bytearray): The buffer to perform actions on.
