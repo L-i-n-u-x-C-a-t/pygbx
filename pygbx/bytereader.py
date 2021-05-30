@@ -60,9 +60,6 @@ class ByteReaderBase(object):
         # initialize position_checkpoint but still keep it invalid
         self.position_checkpoint = PositionCheckpoint(None, None)
 
-        # alias of skip method
-        self.move = self.skip
-
     def push_position_checkpoint(self):
         """Begins a section that can be then retrieved with pop_position_checkpoint."""
         self.position_checkpoint.pos = self.pos
@@ -84,6 +81,10 @@ class ByteReaderBase(object):
         # position_checkpoint can also be retrieved with self.position_checkpoint
         return self.position_checkpoint
 
+    def move(self, num_bytes):
+        """Alias of skip()"""
+        return self.skip(num_bytes)
+
     def __get_bytes(self, num_bytes):
         try:
             return self.data[self.pos:self.pos+num_bytes]  # This does not fail when reading more than available
@@ -92,7 +93,7 @@ class ByteReaderBase(object):
             logging.error(e, exc_info=True, stack_info=True)
             return False
 
-    def read(self, num_bytes, format_chars=None, little_endian=True):
+    def read(self, num_bytes, format_chars=None, little_endian=True, skip=True):
         """Reads an arbitrary amount of bytes from the buffer.
 
         Args:
@@ -101,6 +102,7 @@ class ByteReaderBase(object):
                                 unpack the bytes. for more information on format characters see:
                                 # https://docs.python.org/3/library/struct.html#format-characters
             little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         Returns:
             data of type format_chars (or bytearray if format_chars is None) or False upon errors/exceptions
         """
@@ -110,7 +112,8 @@ class ByteReaderBase(object):
             return False
 
         bytes_read = len(val)
-        self.pos += bytes_read
+        if skip:
+            self.skip(bytes_read)
 
         if bytes_read > num_bytes:
             logging.error(f'Tried to read {num_bytes} byte(s), but only {bytes_read} byte(s) were left to be read')
@@ -145,11 +148,15 @@ class ByteReaderBase(object):
         """
         self.pos += num_bytes
 
-    def read_string(self, num_bytes, little_endian=True):
+    def read_string(self, num_bytes, little_endian=True, skip=True):
         """Reads num_bytes amount of bytes from buffer and returns utf-8 decoded string.
         Note that you have to specify the amount of _bytes_ of the string, not the amount of characters!
         If you specify an invalid amount of bytes given the utf-8 encoding, you'll likely end up getting decoding errors
 
+        Args:
+            num_bytes (int): amount of bytes (not characters) to read
+            little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         Returns:
             the utf-8 string read from the buffer
         """
@@ -169,61 +176,82 @@ class ByteReaderBase(object):
             logging.error(f'Failed to read string from buffer: {e}')
             return False
 
-    def read_int32(self, little_endian=True):
+    def read_int32(self, little_endian=True, skip=True):
         """Reads a signed int32.
 
+        Args:
+            little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         Returns:
             the integer read from the buffer
         """
-        return self.read(4, 'i', little_endian)
+        return self.read(4, 'i', little_endian, skip)
 
-    def read_uint32(self, little_endian=True):
+    def read_uint32(self, little_endian=True, skip=True):
         """Reads an unsigned int32.
 
+        Args:
+            little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         Returns:
             the integer read from the buffer
         """
-        return self.read(4, 'I', little_endian)
+        return self.read(4, 'I', little_endian, skip)
 
-    def read_int16(self, little_endian=True):
+    def read_int16(self, little_endian=True, skip=True):
         """Reads a signed int16.
 
+        Args:
+            little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         Returns:
             the integer read from the buffer
         """
-        return self.read(2, 'h', little_endian)
+        return self.read(2, 'h', little_endian, skip)
 
-    def read_uint16(self, little_endian=True):
+    def read_uint16(self, little_endian=True, skip=True):
         """Reads an unsigned int16.
 
+        Args:
+            little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         Returns:
             the integer read from the buffer
         """
-        return self.read(2, 'H', little_endian)
+        return self.read(2, 'H', little_endian, skip)
 
-    def read_uint8(self, little_endian=True):
+    def read_uint8(self, little_endian=True, skip=True):
         """Reads a signed int8.
 
+        Args:
+            little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         Returns:
             the integer read from the buffer
         """
-        return self.read(1, 'B', little_endian)
+        return self.read(1, 'B', little_endian, skip)
 
-    def read_int8(self, little_endian=True):
+    def read_int8(self, little_endian=True, skip=True):
         """Reads a signed int8.
 
+        Args:
+            little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         Returns:
             the integer read from the buffer
         """
-        return self.read(1, 'b', little_endian)
+        return self.read(1, 'b', little_endian, skip)
 
-    def read_float(self, little_endian=True):
+    def read_float(self, little_endian=True, skip=True):
         """Reads a 32 bit float.
 
+        Args:
+            little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         Returns:
             the float read from the buffer
         """
-        return self.read(4, 'f', little_endian)
+        return self.read(4, 'f', little_endian, skip)
 
     def __write_bytes(self, data, format_chars):
         try:
@@ -235,7 +263,7 @@ class ByteReaderBase(object):
             logging.error(e)
             return False
 
-    def write(self, data, format_chars=None, little_endian=True):
+    def write(self, data, format_chars=None, little_endian=True, skip=True):
         """Writes an arbitrary amount of bytes to the buffer.
 
         Args:
@@ -244,6 +272,7 @@ class ByteReaderBase(object):
             is None, then data must be an bytearray. for more information on format characters see:
                 # https://docs.python.org/3/library/struct.html#format-characters
             little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False upon errors/exceptions
         """
@@ -264,13 +293,18 @@ class ByteReaderBase(object):
 
         if bytes_written:
             self.size = self.pos + bytes_written if self.pos + bytes_written > self.size else self.size
-            self.pos += bytes_written
+            if skip:
+                self.skip(bytes_written)
         return bytes_written
 
     # TODO: This still can fail for some inputs
-    def write_string(self, data, little_endian=True):
+    def write_string(self, data, little_endian=True, skip=True):
         """Writes a string to the buffer.
 
+        Args:
+            data (str): string to write to buffer
+            little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False on error/exception
         """
@@ -281,97 +315,126 @@ class ByteReaderBase(object):
             string_encoded = data.encode('utf-8')
             # struct.pack ignored the endianness for strings (format character s/p), so they are reversed here instead
             if little_endian:
-                return self.write(bytearray(string_encoded[-1::-1]), f'{len(string_encoded)}s')
+                return self.write(bytearray(string_encoded[-1::-1]), f'{len(string_encoded)}s', skip=skip)
             else:
-                return self.write(bytearray(string_encoded), f'{len(string_encoded)}s')
+                return self.write(bytearray(string_encoded), f'{len(string_encoded)}s', skip=skip)
         else:
             logging.error(f'write_string accepts data type str. {type(data)} was given.')
             return False
 
-    def write_uint32(self, data, little_endian=True):
+    def write_uint32(self, data, little_endian=True, skip=True):
         """Writes an uint32 to the buffer.
 
+        Args:
+            data (int): the int to write to the buffer
+            little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False on error/exception
         """
         if isinstance(data, int) and 0 <= data <= 4294967295:
-            return self.write(data, 'I', little_endian)
+            return self.write(data, 'I', little_endian, skip)
         else:
             # TODO: Fix error log message of what the incorrect datatype was. type() is insufficient. (for all w_(u)int)
             logging.error(f'write_uint32 accepts data type uint32. {type(data)} was given.')
             return False
 
-    def write_int32(self, data, little_endian=True):
+    def write_int32(self, data, little_endian=True, skip=True):
         """Writes an int32 to the buffer.
 
+        Args:
+            data (int): the int to write to the buffer
+            little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False on error/exception
         """
         if isinstance(data, int) and -2147483648 <= data <= 2147483647:
-            return self.write(data, 'i', little_endian)
+            return self.write(data, 'i', little_endian, skip)
         else:
             logging.error(f'write_int32 accepts data type int32. {type(data)} was given.')
             return False
 
-    def write_uint16(self, data, little_endian=True):
+    def write_uint16(self, data, little_endian=True, skip=True):
         """Writes an uint16 to the buffer.
 
+        Args:
+            data (int): the int to write to the buffer
+            little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False on error/exception
         """
         if isinstance(data, int) and 0 <= data <= 65536:
-            return self.write(data, 'H', little_endian)
+            return self.write(data, 'H', little_endian, skip)
         else:
             logging.error(f'write_uint16 accepts data type uint16. {type(data)} was given.')
             return False
 
-    def write_int16(self, data, little_endian=True):
+    def write_int16(self, data, little_endian=True, skip=True):
         """Writes an int16 to the buffer.
 
+        Args:
+            data (int): the int to write to the buffer
+            little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False on error/exception
         """
         if isinstance(data, int) and -32768 <= data <= 32767:
-            return self.write(data, 'h', little_endian)
+            return self.write(data, 'h', little_endian, skip)
         else:
             logging.error(f'write_int16 accepts data type int16. {type(data)} was given.')
             return False
 
-    def write_uint8(self, data, little_endian=True):
+    def write_uint8(self, data, little_endian=True, skip=True):
         """Writes an int8 to the buffer.
 
+        Args:
+            data (int): the int to write to the buffer
+            little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False on error/exception
         """
         if isinstance(data, int) and 0 <= data <= 255:
-            return self.write(data, 'B', little_endian)
+            return self.write(data, 'B', little_endian, skip)
         else:
             logging.error(f'write_uint8 accepts data type uint8. {type(data)} was given.')
             return False
 
-    def write_int8(self, data, little_endian=True):
+    def write_int8(self, data, little_endian=True, skip=True):
         """Writes an int8 to the buffer.
 
+        Args:
+            data (int): the int to write to the buffer
+            little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False on error/exception
         """
         if isinstance(data, int) and -128 <= data <= 127:
-            return self.write(data, 'b', little_endian)
+            return self.write(data, 'b', little_endian, skip)
         else:
             logging.error(f'write_int8 accepts data type int8. {type(data)} was given.')
             return False
 
-    def write_float(self, data, little_endian=True):
+    def write_float(self, data, little_endian=True, skip=True):
         """Writes a float to the buffer.
 
+        Args:
+            data (float): the float to write to the buffer
+            little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False on error/exception
         """
         if isinstance(data, float) and -float_info.max <= data <= float_info.max:
-            return self.write(data, 'f', little_endian)
+            return self.write(data, 'f', little_endian, skip)
         else:
             logging.error(f'write_float accepts data type float. {type(data)} was given.')
             return False
+
 
 class ByteReader(ByteReaderBase):
     """The ByteReader class provides convenience methods for reading raw types such as integers, strings
@@ -398,7 +461,7 @@ class ByteReader(ByteReaderBase):
         self.seen_lookback = False
         self.stored_strings = []
 
-    def read(self, num_bytes=None, format_chars=None, little_endian=False):
+    def read(self, num_bytes=None, format_chars=None, little_endian=False, skip=True):
         """This 'low' level read operating can be simply used by only calling it with the amount of bytes you want to
         read to get back a bytearray in big endian format (human readable left to right). If you call this with
         num_bytes set to None, it will first read an uint32 from the buffer (changing the readers position by +4),
@@ -414,10 +477,11 @@ class ByteReader(ByteReaderBase):
                                      unpack the bytes. for more information on format characters see:
                                      # https://docs.python.org/3/library/struct.html#format-characters
             little_endian (bool): sets endianness when reading
+            skip (bool): change self.pos after reading. set this to false if you don't want the reader to move around
         """
-        return super().read(self.read_uint32() if num_bytes is None else num_bytes, format_chars, little_endian)
+        return super().read(self.read_uint32() if num_bytes is None else num_bytes, format_chars, little_endian, skip)
 
-    def read_string(self, num_bytes=None, little_endian=False):
+    def read_string(self, num_bytes=None, little_endian=False, skip=True):
         """Reads string from buffer in human readable format (big endian). You can specify the num_bytes to read, but
         this can lead to unicode exceptions. If num_bytes is None, it will first read a uint32, and use the read value
         as the amount of bytes it will then read afterwards and return that data.
@@ -427,10 +491,17 @@ class ByteReader(ByteReaderBase):
 
         GBX data in almost all cases has big endian strings (human readable). There are exception(s?) like the string
         "SKIP" which appears backwards as "PIKS", but that doesn't have a uint32 in front of it anyway, its different.
-        """
-        return super().read_string(self.read_uint32() if num_bytes is None else num_bytes, little_endian)
 
-    def write(self, data, format_chars=None, little_endian=False):
+        Args:
+            num_bytes (int): amount of bytes to read, or if empty it determines the amount automatically (see above)
+            little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
+        Returns:
+            the utf-8 string that was read from the buffer, False on errors/exceptions
+        """
+        return super().read_string(self.read_uint32() if num_bytes is None else num_bytes, little_endian, skip)
+
+    def write(self, data, format_chars=None, little_endian=False, skip=True):
         """Writes an arbitrary amount of bytes to the buffer in big endian format (human readable left to right)
 
         If you want to write specific data types use the higher level methods below.
@@ -441,12 +512,13 @@ class ByteReader(ByteReaderBase):
             is None, then data must be an bytearray. for more information on format characters see:
                 # https://docs.python.org/3/library/struct.html#format-characters
             little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False upon errors/exceptions
         """
-        return super().write(data, format_chars, little_endian)
+        return super().write(data, format_chars, little_endian, skip)
 
-    def write_string(self, data, little_endian=False):
+    def write_string(self, data, little_endian=False, skip=True):
         """Writes a string to the buffer in big endian (human readable left to right)
 
         Remember that len(str) is not the same the bytes it will actually write. This method however does return the
@@ -455,10 +527,11 @@ class ByteReader(ByteReaderBase):
         Args:
             data (str): String to write (do not use .encode('utf-8') on it before passing it)
             little_endian (bool): sets endianness when writing
+            skip (bool): change self.pos after writing. set this to false if you don't want the reader to move around
         Returns:
             Number of bytes that were written, False upon errors/exceptions
         """
-        return super().write_string(data, little_endian)
+        return super().write_string(data, little_endian, skip)
 
     def read_string_lookback(self):
         """Reads a special string type in the GBX file format called the lookbackstring.
