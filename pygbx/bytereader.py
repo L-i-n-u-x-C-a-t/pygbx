@@ -236,8 +236,7 @@ class ByteReaderBase(object):
             return False
 
     def write(self, data, format_chars=None, little_endian=True):
-        """Writes an arbitrary amount of bytes to the buffer. The readers position changes if when no errors/exceptions
-        have occurred.
+        """Writes an arbitrary amount of bytes to the buffer.
 
         Args:
             data (bytearray, any): the data to be written to the buffer
