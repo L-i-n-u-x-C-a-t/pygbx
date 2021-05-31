@@ -1,35 +1,63 @@
-import struct
-from pygbx.bytereader import ByteReader
+import logging
+from os import path, name as osname, getcwd
+
 
 class LZO(object):
-    """
-    Partial implementation of the Lempel-Ziv-Oberhumer data compression algorithm.
-
-    This implements the lzo1x_decompress_safe algorithm
-    """
-
     def __init__(self):
+        # Force this variable until non lib version is ready
+        use_shared_lib = True
+        self._use_shared_lib = use_shared_lib
+        # Load libs here once in case someone wants to execute the compression methods in batch mode
+        if self._use_shared_lib:
+            import ctypes
+            self._lib_ext = ''
+            if osname == 'nt':
+                self._lib_ext = '.dll'
+            elif osname == 'posix':
+                self._lib_ext = '.so'
+            else:
+                self._lib_ext = False
+            if self._lib_ext:
+                self._decompress_lib_path = path.join(getcwd(), 'pygbx', 'lzo', 'libs',
+                                                      f'lzo1x_decompress_safe{self._lib_ext}')
+                self._lzo_lib = ctypes.CDLL(self._decompress_lib_path)
+            else:
+                logging.error(f'your system cannot load the lzo libs. required: windows/posix, given: {osname}')
+
+    def lzo1x_decompress_safe(self, data, uncompressed_size):
+        if self._use_shared_lib:
+            return self._lzo1x_decompress_safe_libs(data, uncompressed_size)
+        else:
+            return self._lzo1x_decompress_safe(data, uncompressed_size)
+
+    def _lzo1x_decompress_safe_libs(self, data, uncompressed_size):
+        if not self._lib_ext:
+            logging.error(f'your system cannot load the lzo libs. required: windows/posix, given: {osname}')
+            return False
+        if not isinstance(data, bytes):
+            try:
+                data = bytes(data)
+            except Exception as e:
+                logging.error(f'Could not turn data into bytes data type: {e}')
+                return False
+        if not isinstance(uncompressed_size, int):
+            logging.error(f'uncompressed_size must be of data type int. {type(uncompressed_size)} was given')
+            return False
+
+        self.out = bytes(uncompressed_size)
+        compressed_size = len(data)
+        try:
+            self._lzo_lib.lzo1x_decompress_safe(data, compressed_size, self.out, uncompressed_size)
+            return self.out
+        except Exception as e:
+            print('?')
+            logging.error(e)
+            return False
+
+    def _lzo1x_decompress_safe(self, data, uncompressed_size):
         pass
+        # TODO: Create a python code version of this
 
-
-    @staticmethod
-    def lzo1x_decompress_safe(compressed_data, output_length):
-        ip = ByteReader(compressed_data)
-
-        out_len = output_length
-        op = ByteReader(bytearray(out_len))
-
-        op_len = op.size
-
-        out = 0
-
-        ip_end = ip.size
-        op_end = op.size
-
-        t = 0
-        m_pos = 0
-
-        print(op_len)
 
 """
 int __cdecl lzo1x_decompress_safe(const unsigned char* in, unsigned long in_len,
@@ -335,5 +363,4 @@ int __cdecl lzo1x_decompress_safe(const unsigned char* in, unsigned long in_len,
 
     *out_len = op - out;
     return -7;
-}
-"""
+}"""

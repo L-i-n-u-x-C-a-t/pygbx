@@ -5,6 +5,7 @@ import zlib
 
 import pygbx.headers as headers
 from pygbx.bytereader import ByteReader
+from pygbx.lzo import LZO
 
 
 class GbxType(IntEnum):
@@ -129,14 +130,14 @@ class Gbx(object):
         self.root_parser.push_position_checkpoint()
         self.positions['data_size'] = self.root_parser.pop_position_checkpoint()
 
-        data_size = self.root_parser.read_uint32()
+        uncompressed_data_size = self.root_parser.read_uint32()
         compressed_data_size = self.root_parser.read_uint32()
         cdata = self.root_parser.read(compressed_data_size)
-        # self.data = bytearray(lzo.decompress(cdata, False, data_size))
-        self.data = b'\x00\x00\x00\x00'
+        lzo = LZO()
+        self.data = bytearray(lzo.lzo1x_decompress_safe(cdata, uncompressed_data_size))
 
         bp = ByteReader(self.data)
-        #self._read_node(self.class_id, -1, bp)
+        self._read_node(self.class_id, -1, bp)
 
     def __read_sub_folder(self):
         num_sub_folders = self.root_parser.read_uint32()
