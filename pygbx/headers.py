@@ -106,6 +106,7 @@ class CGameChallenge(CGameHeader):
         self.items = []
         self.password_hash = None
         self.password_crc = None
+        self.map_thumbnail = None
 
 
 class CGameBlockItem(CGameHeader):
