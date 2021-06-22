@@ -23,5 +23,5 @@ setup(
     'Programming Language :: Python :: 3.8',
   ],
   package_dir={'pygbx': 'pygbx'},
-  package_data={'pygbx': ['lzo/libs/lzo1x.*']},
+  package_data={'pygbx': ['lzo/libs/lzo1x_32.*','lzo/libs/lzo1x_64.*']},
 )
