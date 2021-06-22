@@ -429,7 +429,13 @@ class Gbx(object):
                 self.positions['mood'] = bp.pop_info()
                 game_class.env_bg = bp.read_string_lookback()
                 game_class.env_author = bp.read_string_lookback()
-
+                
+                read_data = self.f.read()
+                header_end = read_data.find(b'</header>') #needed in case the mapname is <Thumbnail.jpg>
+                first = read_data.find(b'<Thumbnail.jpg>', header_end) + 15 
+                last = read_data.find(b'</Thumbnail.jpg>')
+                game_class.map_thumbnail = read_data[first:last]
+                
                 game_class.map_size = (
                     bp.read_int32(),
                     bp.read_int32(),
